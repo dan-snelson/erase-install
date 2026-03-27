@@ -271,102 +271,28 @@ check_for_mist() {
 # Download dialog if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
-    # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
+    # Log if a workdir copy of swiftDialog is present — it is not used in this environment
+    # (execution from the workdir is blocked by security policy)
     if [[ -d "$dialog_portable_app" ]]; then
-        dialog_bin="$dialog_portable_app/Contents/MacOS/dialogcli"
-        if [[ ! -f "$dialog_bin" ]]; then
-            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
-        fi
-        dialog_string=$("$dialog_bin" --version)
-        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
-            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
-            /bin/rm -rf "$dialog_portable_app" 
-            /bin/rm -f /var/tmp/dialog.*
-            dialog_bin=""
-        fi
+        writelog "[check_for_swiftdialog_app] NOTE: swiftDialog found at $dialog_portable_app but will not be used (blocked by security policy). Using default location instead."
     fi
 
-    # check also for a pre-installed version
-    if [[ ! -d "$dialog_portable_app" && -d "$dialog_default_app" ]]; then
+    # Use only the default system-wide installation of swiftDialog
+    if [[ -d "$dialog_default_app" ]]; then
         dialog_bin="$dialog_default_app/Contents/MacOS/dialogcli"
         if [[ ! -f "$dialog_bin" ]]; then
             dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
         fi
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
-            writelog "[check_for_swiftdialog_app] Preinstalled version of swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version."
-            dialog_bin=""
-        fi
-    fi
-
-    # Determine the correct required version based on OS version
-    if ! is-at-least "14" "$system_version"; then
-        # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
-        swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
-    fi
-
-    # now check for any version of swiftDialog and download if not present
-    if [[ -f "$dialog_bin" && "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
-        writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
-    else
-        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
-        if [[ ! $no_curl ]]; then
-            if ! is-at-least "14" "$system_version"; then
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
-                # obtain the download URL
-                swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
-                
-                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                    if installer -tgt / -pkg "$workdir/dialog.pkg" ; then
-                        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
-                        dialog_string=$("$dialog_bin" --version)
-                        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-                        writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
-                    else
-                        writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
-                    fi
-                else
-                    writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
-                    exit 1
-                fi
-            else
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
-                # obtain the download URL
-                swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
-                
-                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.pkg" ; then
-                    writelog "[check_for_swiftdialog_app] Expanding swiftDialog package..."
-                    if pkgutil --expand "$workdir/swiftDialog.pkg" "$workdir/swiftDialog_expanded"; then
-                        mkdir -p "$workdir/swiftDialog_payload"
-                        cd "$workdir/swiftDialog_payload" && cat "$workdir/swiftDialog_expanded/tmp-package.pkg/Payload" | gunzip -dc | cpio -i
-                        if cp -r "$workdir/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$workdir"/; then
-                            writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
-                            rm -rf "$workdir/swiftDialog_expanded" "$workdir/swiftDialog_payload" "$workdir/swiftDialog.pkg"
-                        else
-                            writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
-                        fi
-                    else
-                        writelog "[check_for_swiftdialog_app] ERROR: could not expand downloaded swiftDialog package"
-                    fi
-                else
-                    writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
-                fi
-            fi
-
-        fi
-        # check it did actually get downloaded
-        # writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed" # TEMP
-    
-        if [[ -f "$dialog_bin" ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_bin)"
-        else
-            writelog "[check_for_swiftdialog_app] ERROR: Could not download swiftDialog."
+        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then
+            writelog "[check_for_swiftdialog_app] ERROR: swiftDialog v$dialog_string at $dialog_default_app is not compatible with macOS $system_version."
             exit 1
         fi
+        writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
+    else
+        writelog "[check_for_swiftdialog_app] ERROR: swiftDialog not found at $dialog_default_app. Please deploy swiftDialog before running this script."
+        exit 1
     fi
 
     # ensure log file is writable
