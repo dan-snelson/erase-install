@@ -48,9 +48,14 @@ build:
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
 	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.0.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_bigsur_url" ;\
-	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/swiftDialog-bigsur.pkg" ;\
+	curl -L "$$swiftdialog_bigsur_url" -o "/private/tmp/swiftDialog.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"
-
+	echo "## Extracting Dialog.app from swiftDialog pkg" ;\
+	pkgutil --expand "/private/tmp/swiftDialog.pkg" "/private/tmp/swiftDialog_expanded" ;\
+	mkdir -p "/private/tmp/swiftDialog_payload" ;\
+	cd "/private/tmp/swiftDialog_payload" && cat "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | gunzip -dc | cpio -i ;\
+	cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$(PKG_SCRIPTS)/Dialog-bigsur.app" ;\
+	rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 	@echo
 	mist_tag=$$(awk -F '=' '/mist_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
 	echo "## Downloading mist-cli $$mist_tag" ;\
@@ -89,5 +94,6 @@ clean :
 	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/"* ||:
 	rm $(CURDIR)/pkg/erase-install/build/*.pkg ||:
 	rm -Rf $(CURDIR)/pkg/erase-install/scripts/*.pkg ||:
+	rm -Rf $(CURDIR)/pkg/erase-install/scripts/*.app ||:
 	rm $(CURDIR)/pkg/erase-install/scripts/jq* ||:
 	rm -Rf $(CURDIR)/pkg/erase-install/payload ||:
